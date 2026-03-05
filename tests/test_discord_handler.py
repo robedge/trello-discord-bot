@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 from bot.discord_handler import handle_thread_create, handle_message
 from bot.config import Config
 
@@ -24,7 +24,7 @@ def mock_db():
 @pytest.fixture
 def mock_trello():
     trello = AsyncMock()
-    trello._list_ids = {"To Do": "l1"}
+    trello.get_list_id = MagicMock(return_value="l1")
     return trello
 
 
@@ -74,17 +74,16 @@ async def test_handle_message_syncs_to_trello(mock_db, mock_trello, config):
 
     mock_db.get_card_id_for_thread.return_value = "card1"
     mock_db.is_comment_synced.return_value = False
+    mock_trello.add_comment.return_value = {"id": "trello_action_1"}
 
-    bot_user = MagicMock()
-    bot_user.id = 1
-
-    await handle_message(message, mock_db, mock_trello, config, bot_user)
+    await handle_message(message, mock_db, mock_trello, config)
 
     mock_trello.add_comment.assert_awaited_once()
     comment_text = mock_trello.add_comment.call_args[0][1]
     assert "User1" in comment_text
     assert "A reply" in comment_text
-    mock_db.add_synced_comment.assert_awaited_once()
+    # Should record both Discord and Trello action IDs to prevent echo-back
+    assert mock_db.add_synced_comment.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -92,8 +91,7 @@ async def test_handle_message_ignores_bot(mock_db, mock_trello, config):
     message = MagicMock()
     message.author.bot = True
 
-    bot_user = MagicMock()
-    await handle_message(message, mock_db, mock_trello, config, bot_user)
+    await handle_message(message, mock_db, mock_trello, config)
 
     mock_db.get_card_id_for_thread.assert_not_awaited()
 
@@ -106,8 +104,7 @@ async def test_handle_message_ignores_untracked_thread(mock_db, mock_trello, con
 
     mock_db.get_card_id_for_thread.return_value = None
 
-    bot_user = MagicMock()
-    await handle_message(message, mock_db, mock_trello, config, bot_user)
+    await handle_message(message, mock_db, mock_trello, config)
 
     mock_trello.add_comment.assert_not_awaited()
 
@@ -122,7 +119,6 @@ async def test_handle_message_skips_starter_message(mock_db, mock_trello, config
 
     mock_db.get_card_id_for_thread.return_value = "card1"
 
-    bot_user = MagicMock()
-    await handle_message(message, mock_db, mock_trello, config, bot_user)
+    await handle_message(message, mock_db, mock_trello, config)
 
     mock_trello.add_comment.assert_not_awaited()

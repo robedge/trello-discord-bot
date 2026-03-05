@@ -71,6 +71,9 @@ class TrelloClient:
         logger.info("Resolved %d Trello lists", len(self._list_ids))
         return self._list_ids
 
+    def get_list_id(self, list_name: str) -> str | None:
+        return self._list_ids.get(list_name)
+
     def get_list_name(self, list_id: str) -> str | None:
         for name, lid in self._list_ids.items():
             if lid == list_id:

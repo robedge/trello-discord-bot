@@ -48,11 +48,17 @@ def main() -> None:
     trello = TrelloClient(api_key=config.trello_api_key, api_token=config.trello_api_token)
 
     health_runner: web.AppRunner | None = None
+    initialized = False
 
     @bot.event
     async def on_ready() -> None:
-        nonlocal health_runner
+        nonlocal health_runner, initialized
         logger.info("Bot logged in as %s", bot.user)
+
+        if initialized:
+            logger.info("on_ready fired again (reconnect), skipping init")
+            return
+        initialized = True
 
         await db.init()
         await trello.resolve_list_ids(config.trello_board_id)

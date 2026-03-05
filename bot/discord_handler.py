@@ -50,7 +50,7 @@ async def handle_thread_create(
         desc += "\n\n**Attachments too large to upload:**\n" + "\n".join(oversized)
 
     # Get the To Do list ID
-    list_id = trello._list_ids.get(config.trello_list_todo)
+    list_id = trello.get_list_id(config.trello_list_todo)
     if not list_id:
         logger.error("Could not find Trello list '%s'", config.trello_list_todo)
         return
@@ -82,7 +82,6 @@ async def handle_message(
     db: Database,
     trello: TrelloClient,
     config: Config,
-    bot_user: discord.User,
 ) -> None:
     if message.author.bot:
         return
@@ -107,12 +106,15 @@ async def handle_message(
         text += f"\n\n**Attachments:**\n{urls}"
 
     try:
-        await trello.add_comment(card_id, text)
+        result = await trello.add_comment(card_id, text)
     except Exception as e:
         logger.error("Failed to sync message %s to Trello: %s", message.id, e)
         return
 
     await db.add_synced_comment("discord", str(message.id), card_id, thread_id)
+    # Record the Trello action ID to prevent the poller from echoing it back
+    if isinstance(result, dict) and "id" in result:
+        await db.add_synced_comment("trello", result["id"], card_id, thread_id)
     logger.info("Synced Discord message %s to Trello card %s", message.id, card_id)
 
 
@@ -130,4 +132,4 @@ def setup_handlers(
 
     @bot.event
     async def on_message(message: discord.Message) -> None:
-        await handle_message(message, db, trello, config, bot.user)
+        await handle_message(message, db, trello, config)

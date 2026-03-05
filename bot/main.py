@@ -39,6 +39,9 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
+    # Suppress httpx request logging to avoid leaking credentials in logs
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     intents = discord.Intents.default()
     intents.message_content = True
     intents.guilds = True

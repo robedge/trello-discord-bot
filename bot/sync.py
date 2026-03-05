@@ -52,6 +52,17 @@ class SyncService:
             logger.warning("Could not fetch card %s (maybe deleted): %s", card_id, e)
             return
 
+        # Check if card was archived → delete Discord thread
+        if card.get("closed"):
+            thread = self.bot.get_channel(int(thread_id))
+            if thread is not None:
+                try:
+                    await thread.delete()
+                    logger.info("Deleted thread %s (Trello card %s archived)", thread_id, card_id)
+                except Exception as e:
+                    logger.error("Failed to delete thread %s: %s", thread_id, e)
+            return
+
         # Check for list change
         current_list_id = card["idList"]
         cached_list_id = await self.db.get_cached_list_id(card_id)

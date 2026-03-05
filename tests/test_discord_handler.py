@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from bot.discord_handler import handle_thread_create, handle_message
+from bot.discord_handler import handle_thread_create, handle_thread_delete, handle_message
 from bot.config import Config
 
 
@@ -122,3 +122,39 @@ async def test_handle_message_skips_starter_message(mock_db, mock_trello, config
     await handle_message(message, mock_db, mock_trello, config)
 
     mock_trello.add_comment.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_thread_delete_archives_card(mock_db, mock_trello, config):
+    thread = AsyncMock()
+    thread.parent_id = 100
+    thread.id = 999
+
+    mock_db.get_card_id_for_thread.return_value = "card1"
+
+    await handle_thread_delete(thread, mock_db, mock_trello, config)
+
+    mock_trello.archive_card.assert_awaited_once_with("card1")
+
+
+@pytest.mark.asyncio
+async def test_handle_thread_delete_ignores_other_channels(mock_db, mock_trello, config):
+    thread = AsyncMock()
+    thread.parent_id = 999
+
+    await handle_thread_delete(thread, mock_db, mock_trello, config)
+
+    mock_trello.archive_card.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_handle_thread_delete_ignores_untracked(mock_db, mock_trello, config):
+    thread = AsyncMock()
+    thread.parent_id = 100
+    thread.id = 999
+
+    mock_db.get_card_id_for_thread.return_value = None
+
+    await handle_thread_delete(thread, mock_db, mock_trello, config)
+
+    mock_trello.archive_card.assert_not_awaited()

@@ -38,6 +38,11 @@ class TrelloClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def _put(self, path: str, **params: Any) -> Any:
+        resp = await self._client.put(f"{BASE_URL}{path}", params=self._params(**params))
+        resp.raise_for_status()
+        return resp.json()
+
     async def close(self) -> None:
         await self._client.aclose()
 
@@ -47,7 +52,10 @@ class TrelloClient:
     async def create_card(self, list_id: str, name: str, desc: str) -> dict:
         return await self._post("/cards", idList=list_id, name=name, desc=desc)
 
-    async def get_card(self, card_id: str, fields: str = "idList") -> dict:
+    async def archive_card(self, card_id: str) -> dict:
+        return await self._put(f"/cards/{card_id}", closed="true")
+
+    async def get_card(self, card_id: str, fields: str = "idList,closed") -> dict:
         return await self._get(f"/cards/{card_id}", fields=fields)
 
     async def get_card_actions(self, card_id: str, filter: str = "commentCard") -> list[dict]:

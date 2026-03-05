@@ -82,6 +82,26 @@ async def handle_thread_create(
     logger.info("Created Trello card %s for thread %s", card_id, thread.id)
 
 
+async def handle_thread_delete(
+    thread: discord.Thread,
+    db: Database,
+    trello: TrelloClient,
+    config: Config,
+) -> None:
+    if thread.parent_id not in config.discord_forum_channel_ids:
+        return
+
+    card_id = await db.get_card_id_for_thread(str(thread.id))
+    if not card_id:
+        return
+
+    try:
+        await trello.archive_card(card_id)
+        logger.info("Archived Trello card %s (thread %s deleted)", card_id, thread.id)
+    except Exception as e:
+        logger.error("Failed to archive Trello card %s: %s", card_id, e)
+
+
 async def handle_message(
     message: discord.Message,
     db: Database,
@@ -134,6 +154,10 @@ def setup_handlers(
     @bot.event
     async def on_thread_create(thread: discord.Thread) -> None:
         await handle_thread_create(thread, db, trello, config)
+
+    @bot.event
+    async def on_thread_delete(thread: discord.Thread) -> None:
+        await handle_thread_delete(thread, db, trello, config)
 
     @bot.event
     async def on_message(message: discord.Message) -> None:

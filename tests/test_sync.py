@@ -58,6 +58,23 @@ async def test_poll_no_mappings(sync_service, mock_db):
 
 
 @pytest.mark.asyncio
+async def test_poll_deletes_thread_when_card_archived(sync_service, mock_db, mock_trello, mock_bot):
+    mock_db.get_all_mappings.return_value = [
+        {"discord_thread_id": "111", "trello_card_id": "c1", "discord_channel_id": "200"}
+    ]
+    mock_trello.get_card.return_value = {"idList": "l1", "closed": True}
+
+    mock_thread = AsyncMock()
+    mock_bot.get_channel = MagicMock(return_value=mock_thread)
+
+    await sync_service.poll_trello_changes()
+
+    mock_thread.delete.assert_awaited_once()
+    # Should not process comments or list changes
+    mock_trello.get_card_actions.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_poll_detects_list_change(sync_service, mock_db, mock_trello, mock_bot):
     mock_db.get_all_mappings.return_value = [
         {"discord_thread_id": "111", "trello_card_id": "c1", "discord_channel_id": "200"}

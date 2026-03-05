@@ -138,7 +138,7 @@ async def test_poll_syncs_new_trello_comment(sync_service, mock_db, mock_trello,
 
     mock_thread.send.assert_awaited_once()
     sent_text = mock_thread.send.call_args[0][0]
-    assert sent_text == "hello from trello"
+    assert sent_text == "[Trello] hello from trello"
     mock_db.add_synced_comment.assert_awaited_once()
 
 
@@ -160,3 +160,36 @@ async def test_poll_skips_already_synced_comment(sync_service, mock_db, mock_tre
     await sync_service.poll_trello_changes()
 
     mock_thread.send.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_poll_comment_no_prefix_when_empty(mock_db, mock_trello, mock_bot):
+    """When bot_comment_prefix is empty, just send the raw comment text."""
+    no_prefix_config = Config(
+        discord_bot_token="t",
+        discord_forum_channel_ids=[100],
+        trello_api_key="k",
+        trello_api_token="tok",
+        trello_board_id="board1",
+        trello_member_id="m",
+        bot_comment_prefix="",
+    )
+    svc = SyncService(mock_db, mock_trello, mock_bot, no_prefix_config)
+
+    mock_db.get_all_mappings.return_value = [
+        {"discord_thread_id": "111", "trello_card_id": "c1", "discord_channel_id": "200"}
+    ]
+    mock_trello.get_card.return_value = {"idList": "l1"}
+    mock_trello.get_card_actions.return_value = [
+        {"id": "a1", "memberCreator": {"fullName": "Bob"}, "data": {"text": "just the text"}}
+    ]
+    mock_db.get_cached_list_id.return_value = "l1"
+    mock_db.is_comment_synced.return_value = False
+
+    mock_thread = AsyncMock()
+    mock_bot.get_channel = MagicMock(return_value=mock_thread)
+
+    await svc.poll_trello_changes()
+
+    sent_text = mock_thread.send.call_args[0][0]
+    assert sent_text == "just the text"

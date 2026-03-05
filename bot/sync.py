@@ -78,7 +78,7 @@ class SyncService:
                 logger.warning("Discord thread %s not found", thread_id)
                 continue
 
-            await thread.send(f"{prefix} {author}: {text}")
+            await thread.send(text)
             await self.db.add_synced_comment("trello", action_id, card_id, thread_id)
 
     async def _handle_card_moved(self, thread_id: str, new_list_id: str) -> None:

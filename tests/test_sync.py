@@ -138,9 +138,7 @@ async def test_poll_syncs_new_trello_comment(sync_service, mock_db, mock_trello,
 
     mock_thread.send.assert_awaited_once()
     sent_text = mock_thread.send.call_args[0][0]
-    assert "[Trello]" in sent_text
-    assert "Alice" in sent_text
-    assert "hello from trello" in sent_text
+    assert sent_text == "hello from trello"
     mock_db.add_synced_comment.assert_awaited_once()
 
 

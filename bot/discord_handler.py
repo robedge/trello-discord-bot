@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,9 @@ async def handle_thread_create(
 ) -> None:
     if thread.parent_id not in config.discord_forum_channel_ids:
         return
+
+    # Brief delay — on_thread_create fires before the starter message is available
+    await asyncio.sleep(1.5)
 
     try:
         starter = await thread.fetch_message(thread.id)

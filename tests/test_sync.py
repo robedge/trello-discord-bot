@@ -81,6 +81,38 @@ async def test_poll_detects_list_change(sync_service, mock_db, mock_trello, mock
 
     mock_db.update_cached_list_id.assert_awaited_with("c1", "l2")
     mock_thread.edit.assert_awaited_once()
+    # "In Progress" is not a close list, so archived should be False
+    edit_kwargs = mock_thread.edit.call_args[1]
+    assert edit_kwargs["archived"] is False
+
+
+@pytest.mark.asyncio
+async def test_poll_closes_thread_on_complete(sync_service, mock_db, mock_trello, mock_bot):
+    """When a card moves to Complete, the Discord thread should be archived."""
+    mock_trello.get_list_name = MagicMock(
+        side_effect=lambda lid: {"l1": "To Do", "l4": "Complete"}.get(lid)
+    )
+    mock_db.get_all_mappings.return_value = [
+        {"discord_thread_id": "111", "trello_card_id": "c1", "discord_channel_id": "200"}
+    ]
+    mock_trello.get_card.return_value = {"idList": "l4"}
+    mock_trello.get_card_actions.return_value = []
+    mock_db.get_cached_list_id.return_value = "l1"
+
+    mock_tag = MagicMock()
+    mock_tag.name = "Complete"
+    mock_tag.id = 4
+    mock_channel = MagicMock()
+    mock_channel.available_tags = [mock_tag]
+    mock_thread = AsyncMock()
+    mock_thread.applied_tags = []
+    mock_thread.parent = mock_channel
+    mock_bot.get_channel = MagicMock(return_value=mock_thread)
+
+    await sync_service.poll_trello_changes()
+
+    edit_kwargs = mock_thread.edit.call_args[1]
+    assert edit_kwargs["archived"] is True
 
 
 @pytest.mark.asyncio

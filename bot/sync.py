@@ -111,5 +111,10 @@ class SyncService:
         elif tag_name:
             logger.warning("Tag '%s' not found on channel, skipping", tag_name)
 
-        await thread.edit(applied_tags=new_tags)
-        logger.info("Updated thread %s tags for list '%s'", thread_id, list_name)
+        # Close/archive the thread if the card moved to a completed list
+        should_close = list_name in self.config.close_thread_lists
+        await thread.edit(applied_tags=new_tags, archived=should_close)
+        if should_close:
+            logger.info("Closed thread %s (card moved to '%s')", thread_id, list_name)
+        else:
+            logger.info("Updated thread %s tags for list '%s'", thread_id, list_name)

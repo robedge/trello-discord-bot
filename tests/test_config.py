@@ -40,6 +40,26 @@ def test_config_defaults():
     assert config.health_port == 8080
 
 
+def test_channel_prefixes(monkeypatch):
+    env = {
+        "DISCORD_BOT_TOKEN": "t",
+        "DISCORD_FORUM_CHANNEL_ID": "100,200",
+        "TRELLO_API_KEY": "k",
+        "TRELLO_API_TOKEN": "tok",
+        "TRELLO_BOARD_ID": "b",
+        "TRELLO_MEMBER_ID": "m",
+        "DISCORD_CHANNEL_PREFIXES": "100:BUG, 200:FEAT",
+    }
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+
+    config = Config.from_env()
+    assert config.channel_prefixes == {100: "BUG", 200: "FEAT"}
+    assert config.get_card_name(100, "Login broken") == "[BUG] Login broken"
+    assert config.get_card_name(200, "Dark mode") == "[FEAT] Dark mode"
+    assert config.get_card_name(999, "No prefix") == "No prefix"
+
+
 def test_config_missing_required_var(monkeypatch):
     # Clear all required vars so the first one checked triggers the error
     for var in [

@@ -1,7 +1,21 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+def _parse_channel_prefixes(raw: str) -> dict[int, str]:
+    """Parse 'channel_id:PREFIX,channel_id:PREFIX' into {int: str}."""
+    if not raw.strip():
+        return {}
+    result = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if ":" not in pair:
+            continue
+        channel_id, prefix = pair.split(":", 1)
+        result[int(channel_id.strip())] = prefix.strip()
+    return result
 
 
 def _require(name: str) -> str:
@@ -38,6 +52,9 @@ class Config:
     max_attachment_size_mb: int = 10
     bot_comment_prefix: str = "[Trello]"
 
+    # Channel prefixes: maps channel ID to Trello card title prefix
+    channel_prefixes: dict[int, str] = field(default_factory=dict)
+
     # Paths
     db_path: str = "data/bot.db"
 
@@ -71,6 +88,7 @@ class Config:
             discord_tag_published=os.environ.get("DISCORD_TAG_PUBLISHED", "Published"),
             trello_poll_interval_seconds=int(os.environ.get("TRELLO_POLL_INTERVAL_SECONDS", "30")),
             max_attachment_size_mb=int(os.environ.get("MAX_ATTACHMENT_SIZE_MB", "10")),
+            channel_prefixes=_parse_channel_prefixes(os.environ.get("DISCORD_CHANNEL_PREFIXES", "")),
             bot_comment_prefix=os.environ.get("BOT_COMMENT_PREFIX", "[Trello]"),
             db_path=os.environ.get("DB_PATH", "data/bot.db"),
             log_level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -96,6 +114,13 @@ class Config:
             self.trello_list_complete: self.discord_tag_complete,
             self.trello_list_published: self.discord_tag_published,
         }
+
+    def get_card_name(self, channel_id: int, title: str) -> str:
+        """Return the Trello card name, with channel prefix if configured."""
+        prefix = self.channel_prefixes.get(channel_id)
+        if prefix:
+            return f"[{prefix}] {title}"
+        return title
 
     @property
     def close_thread_lists(self) -> set[str]:

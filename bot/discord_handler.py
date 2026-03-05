@@ -60,7 +60,8 @@ async def handle_thread_create(
         return
 
     try:
-        card = await trello.create_card(list_id, thread.name, desc)
+        card_name = config.get_card_name(thread.parent_id, thread.name)
+        card = await trello.create_card(list_id, card_name, desc)
     except Exception as e:
         logger.error("Failed to create Trello card for thread %s: %s", thread.id, e)
         return

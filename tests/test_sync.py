@@ -87,21 +87,21 @@ async def test_poll_detects_list_change(sync_service, mock_db, mock_trello, mock
 
 
 @pytest.mark.asyncio
-async def test_poll_closes_thread_on_complete(sync_service, mock_db, mock_trello, mock_bot):
-    """When a card moves to Complete, the Discord thread should be archived."""
+async def test_poll_closes_thread_on_published(sync_service, mock_db, mock_trello, mock_bot):
+    """When a card moves to Published, the Discord thread should be archived."""
     mock_trello.get_list_name = MagicMock(
-        side_effect=lambda lid: {"l1": "To Do", "l4": "Complete"}.get(lid)
+        side_effect=lambda lid: {"l1": "To Do", "l5": "Published"}.get(lid)
     )
     mock_db.get_all_mappings.return_value = [
         {"discord_thread_id": "111", "trello_card_id": "c1", "discord_channel_id": "200"}
     ]
-    mock_trello.get_card.return_value = {"idList": "l4"}
+    mock_trello.get_card.return_value = {"idList": "l5"}
     mock_trello.get_card_actions.return_value = []
     mock_db.get_cached_list_id.return_value = "l1"
 
     mock_tag = MagicMock()
-    mock_tag.name = "Complete"
-    mock_tag.id = 4
+    mock_tag.name = "Published"
+    mock_tag.id = 5
     mock_channel = MagicMock()
     mock_channel.available_tags = [mock_tag]
     mock_thread = AsyncMock()

@@ -100,4 +100,4 @@ class Config:
     @property
     def close_thread_lists(self) -> set[str]:
         """Trello list names that should close/archive the Discord thread."""
-        return {self.trello_list_complete, self.trello_list_published}
+        return {self.trello_list_published}

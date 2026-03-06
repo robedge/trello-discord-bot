@@ -102,6 +102,81 @@ async def handle_thread_delete(
         logger.error("Failed to archive Trello card %s: %s", card_id, e)
 
 
+async def handle_sync_command(
+    message: discord.Message,
+    db: Database,
+    trello: TrelloClient,
+    config: Config,
+) -> None:
+    """Handle !sync command to manually create a Trello card for an existing thread."""
+    thread = message.channel
+    if not isinstance(thread, discord.Thread):
+        return
+
+    if thread.parent_id not in config.discord_forum_channel_ids:
+        await message.reply("This channel is not a watched forum channel.")
+        return
+
+    existing = await db.get_card_id_for_thread(str(thread.id))
+    if existing:
+        await message.reply(f"This thread is already linked to Trello card `{existing}`.")
+        return
+
+    try:
+        starter = await thread.fetch_message(thread.id)
+    except discord.NotFound:
+        starter = None
+
+    desc = starter.content if starter and starter.content else ""
+    desc += f"\n\n---\n[Discord Thread]({thread.jump_url})"
+
+    oversized: list[str] = []
+    attachment_data: list[tuple[str, bytes, str]] = []
+
+    if starter:
+        for att in starter.attachments:
+            if att.size > config.max_attachment_size_mb * 1024 * 1024:
+                oversized.append(
+                    f"- [{att.filename}]({att.url}) (too large: {att.size // 1024 // 1024}MB)"
+                )
+            else:
+                data = await att.read()
+                attachment_data.append(
+                    (att.filename, data, att.content_type or "application/octet-stream")
+                )
+
+    if oversized:
+        desc += "\n\n**Attachments too large to upload:**\n" + "\n".join(oversized)
+
+    list_id = trello.get_list_id(config.trello_list_todo)
+    if not list_id:
+        await message.reply(f"Could not find Trello list '{config.trello_list_todo}'.")
+        return
+
+    try:
+        card_name = config.get_card_name(thread.parent_id, thread.name)
+        card = await trello.create_card(list_id, card_name, desc)
+    except Exception as e:
+        logger.error("Failed to create Trello card for thread %s: %s", thread.id, e)
+        await message.reply("Failed to create Trello card. Check bot logs.")
+        return
+
+    card_id = card["id"]
+
+    for filename, data, mime_type in attachment_data:
+        try:
+            await trello.add_attachment(card_id, filename, data, mime_type)
+        except Exception as e:
+            logger.error(
+                "Failed to upload attachment %s to card %s: %s", filename, card_id, e
+            )
+
+    await db.add_mapping(str(thread.id), card_id, str(thread.parent_id))
+    await db.update_cached_list_id(card_id, card["idList"])
+    logger.info("Manual sync: created Trello card %s for thread %s", card_id, thread.id)
+    await message.reply(f"Trello card created and linked to this thread.")
+
+
 async def handle_message(
     message: discord.Message,
     db: Database,
@@ -109,6 +184,11 @@ async def handle_message(
     config: Config,
 ) -> None:
     if message.author.bot:
+        return
+
+    # Handle !sync command
+    if message.content.strip() == "!sync":
+        await handle_sync_command(message, db, trello, config)
         return
 
     thread_id = str(message.channel.id)

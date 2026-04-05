@@ -64,6 +64,9 @@ class Config:
     # Health check
     health_port: int = 8080
 
+    # Announcements
+    discord_announcements_channel_id: int | None = None
+
     @classmethod
     def from_env(cls) -> Config:
         discord_bot_token = _require("DISCORD_BOT_TOKEN")
@@ -93,6 +96,7 @@ class Config:
             db_path=os.environ.get("DB_PATH", "data/bot.db"),
             log_level=os.environ.get("LOG_LEVEL", "INFO"),
             health_port=int(os.environ.get("HEALTH_PORT", "8080")),
+            discord_announcements_channel_id=int(os.environ["DISCORD_ANNOUNCEMENTS_CHANNEL_ID"]) if os.environ.get("DISCORD_ANNOUNCEMENTS_CHANNEL_ID") else None,
         )
 
     @property

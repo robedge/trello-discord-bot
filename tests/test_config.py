@@ -79,3 +79,37 @@ def test_config_missing_required_var(monkeypatch):
     monkeypatch.setenv("TRELLO_MEMBER_ID", "m")
     with pytest.raises(ValueError, match="DISCORD_BOT_TOKEN"):
         Config.from_env()
+
+
+def test_config_announcements_channel_id(monkeypatch):
+    """Config should parse DISCORD_ANNOUNCEMENTS_CHANNEL_ID."""
+    env = {
+        "DISCORD_BOT_TOKEN": "test-token",
+        "DISCORD_FORUM_CHANNEL_ID": "123",
+        "TRELLO_API_KEY": "key",
+        "TRELLO_API_TOKEN": "token",
+        "TRELLO_BOARD_ID": "board",
+        "TRELLO_MEMBER_ID": "member",
+        "DISCORD_ANNOUNCEMENTS_CHANNEL_ID": "999888777",
+    }
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    config = Config.from_env()
+    assert config.discord_announcements_channel_id == 999888777
+
+
+def test_config_announcements_channel_id_optional(monkeypatch):
+    """Config should default to None if DISCORD_ANNOUNCEMENTS_CHANNEL_ID not set."""
+    env = {
+        "DISCORD_BOT_TOKEN": "test-token",
+        "DISCORD_FORUM_CHANNEL_ID": "123",
+        "TRELLO_API_KEY": "key",
+        "TRELLO_API_TOKEN": "token",
+        "TRELLO_BOARD_ID": "board",
+        "TRELLO_MEMBER_ID": "member",
+    }
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("DISCORD_ANNOUNCEMENTS_CHANNEL_ID", raising=False)
+    config = Config.from_env()
+    assert config.discord_announcements_channel_id is None

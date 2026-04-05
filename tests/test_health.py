@@ -1,10 +1,9 @@
 # tests/test_health.py
-import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from aiohttp.test_utils import TestClient, TestServer
 from aiohttp import web
-from bot.health import create_health_app, _split_message
+from bot.health import create_health_app, _split_message, DISCORD_MAX_MESSAGE_LENGTH
 
 
 @pytest.mark.asyncio
@@ -180,6 +179,61 @@ async def test_publish_release_splits_long_messages():
         assert mock_channel.send.call_count == 2
 
 
+@pytest.mark.asyncio
+async def test_publish_release_channel_not_found():
+    """POST /publish-release should return 500 if bot.get_channel returns None."""
+    db = AsyncMock()
+    db.check_health = AsyncMock(return_value=True)
+    trello = AsyncMock()
+    trello.check_health = AsyncMock(return_value=True)
+
+    mock_bot = MagicMock()
+    mock_bot.get_channel = MagicMock(return_value=None)
+
+    config = MagicMock()
+    config.discord_announcements_channel_id = 999888777
+
+    app = create_health_app(db, trello, bot=mock_bot, config=config)
+
+    async with TestClient(TestServer(app)) as client:
+        resp = await client.post(
+            "/publish-release",
+            json={"version": "1.0.20", "content": "# v1.0.20\n\nnotes"},
+        )
+        assert resp.status == 500
+        data = await resp.json()
+        assert "not found" in data["error"]
+
+
+@pytest.mark.asyncio
+async def test_publish_release_discord_send_failure():
+    """POST /publish-release should return 500 if channel.send raises an exception."""
+    db = AsyncMock()
+    db.check_health = AsyncMock(return_value=True)
+    trello = AsyncMock()
+    trello.check_health = AsyncMock(return_value=True)
+
+    mock_channel = AsyncMock()
+    mock_channel.send = AsyncMock(side_effect=RuntimeError("Connection lost"))
+
+    mock_bot = MagicMock()
+    mock_bot.get_channel = MagicMock(return_value=mock_channel)
+
+    config = MagicMock()
+    config.discord_announcements_channel_id = 999888777
+
+    app = create_health_app(db, trello, bot=mock_bot, config=config)
+
+    async with TestClient(TestServer(app)) as client:
+        resp = await client.post(
+            "/publish-release",
+            json={"version": "1.0.20", "content": "# v1.0.20\n\nnotes"},
+        )
+        assert resp.status == 500
+        data = await resp.json()
+        assert "Discord send failed" in data["error"]
+
+
 def test_split_message_short():
     """Messages under 2000 chars are returned as-is."""
     content = "Short message"
@@ -207,3 +261,22 @@ def test_split_message_single_huge_section():
     assert len(chunks) >= 2
     for chunk in chunks:
         assert len(chunk) <= 2000
+
+
+def test_split_message_oversized_section_after_flush():
+    """An oversized section following a non-empty current should still be split."""
+    # First section: small enough on its own (~200 chars)
+    section1 = "# Release v1.0\n\n## Intro\n" + "- short\n" * 20
+    # Second section: exceeds 2000 chars on its own
+    section2 = "## Massive Section\n" + "- A reasonably long bullet point line here\n" * 80
+    content = section1 + "\n" + section2
+
+    assert len(section1) < DISCORD_MAX_MESSAGE_LENGTH
+    assert len(section2) > DISCORD_MAX_MESSAGE_LENGTH
+    assert len(content) > DISCORD_MAX_MESSAGE_LENGTH
+
+    chunks = _split_message(content)
+    # Should produce at least 3 chunks: section1, part of section2, rest of section2
+    assert len(chunks) >= 3
+    for chunk in chunks:
+        assert len(chunk) <= DISCORD_MAX_MESSAGE_LENGTH

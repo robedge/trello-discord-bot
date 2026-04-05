@@ -43,7 +43,21 @@ def _split_message(content: str) -> list[str]:
         if current and len(current) + len(section) + 2 > DISCORD_MAX_MESSAGE_LENGTH:
             if current.strip():
                 chunks.append(current.strip())
-            current = section
+            if len(section) > DISCORD_MAX_MESSAGE_LENGTH:
+                # Oversized section after flush — split at bullet points
+                lines = section.split("\n")
+                sub_chunk = ""
+                for line in lines:
+                    if sub_chunk and len(sub_chunk) + len(line) + 1 > DISCORD_MAX_MESSAGE_LENGTH:
+                        chunks.append(sub_chunk.strip())
+                        sub_chunk = line
+                    else:
+                        sub_chunk += ("\n" if sub_chunk else "") + line
+                if sub_chunk.strip():
+                    current = sub_chunk
+                continue
+            else:
+                current = section
         elif not current and len(section) > DISCORD_MAX_MESSAGE_LENGTH:
             # Single section exceeds limit — split at bullet points
             lines = section.split("\n")

@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from aiohttp.test_utils import TestClient, TestServer
 from aiohttp import web
-from bot.health import create_health_app
+from bot.health import create_health_app, _split_message
 
 
 @pytest.mark.asyncio
@@ -178,3 +178,32 @@ async def test_publish_release_splits_long_messages():
         assert data["status"] == "ok"
         assert len(data["message_ids"]) == 2
         assert mock_channel.send.call_count == 2
+
+
+def test_split_message_short():
+    """Messages under 2000 chars are returned as-is."""
+    content = "Short message"
+    assert _split_message(content) == ["Short message"]
+
+
+def test_split_message_at_section_boundary():
+    """Long messages split at ## boundaries."""
+    # 200 lines * 7 chars = ~1400 chars per section; combined ~2800 > 2000 limit
+    section1 = "# Title\n\n## Section A\n" + "- line\n" * 200
+    section2 = "## Section B\n" + "- line\n" * 200
+    content = section1 + "\n" + section2
+
+    chunks = _split_message(content)
+    assert len(chunks) == 2
+    assert chunks[0].startswith("# Title")
+    assert chunks[1].startswith("## Section B")
+
+
+def test_split_message_single_huge_section():
+    """A single section exceeding 2000 chars splits at bullet points."""
+    content = "## Huge Section\n" + "- A long line of text here\n" * 150
+
+    chunks = _split_message(content)
+    assert len(chunks) >= 2
+    for chunk in chunks:
+        assert len(chunk) <= 2000

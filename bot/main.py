@@ -71,7 +71,7 @@ def main() -> None:
 
         start_poller(sync_service, config.trello_poll_interval_seconds)
 
-        health_app = create_health_app(db, trello)
+        health_app = create_health_app(db, trello, bot=bot, config=config)
         health_runner = await run_health_server(health_app, config.health_port)
 
         logger.info("Bot is ready. Watching %d forum channel(s).", len(config.discord_forum_channel_ids))
